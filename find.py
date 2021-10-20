@@ -28,12 +28,12 @@ def listdir_r(dirpath):
 def listfiles_r(dirpath):
 	"""lists files recursively
 	"""
+	theFiles = []	
+	for root, dirs, files in os.walk(dirpath,topdown=True):
+		for name in files:
+			aFile = os.path.join(dirpath, name)
+			theFiles.append(aFile)
 	
-	theFiles = []
-	for files in os.walk(dirpath,topdown=False):
-		for fileName in files:
-			theFiles.append(fileName)
-		
 	return theFiles 
 
 
@@ -45,34 +45,34 @@ if theLen  <= 1:
 pgm = sys.argv[0]
 
 if theLen >= 2:
+
 	root = sys.argv[1]
 	print("root: ", root)
 
-if theLen >= 3:
-	name_operation = sys.argv[2]
-	print("name_operation: ", name_operation)
+	if theLen >= 3:
+		name_operation = sys.argv[2]
+		print("name_operation: ", name_operation)
 
-if theLen >= 4:
-	dir_file = sys.argv[3]
-	print("dir_file: ", dir_file)
+		if name_operation == '-type':
+			dir_file = sys.argv[3]
+			print("dir_file: ", dir_file)
 
-if theLen >= 5:
-	operation = sys.argv[4]
-	print("opertion: ", operation)
+			if theLen >= 5:
+				operation = sys.argv[4]
+				print("operation: ", operation)
 
-os.chdir(dir)
+			else:
 
-print("cwd is: ", os.getcwd())
+				if dir_file == 'd':
+					print("find only directories")
+					for f in listdir_r(root):
+						print("\n",f) 
 
-if name_operation == '-type':
+				elif dir_file == 'f':
+					print("find only files") 
+					for f in listfiles_r(root):
+						print("\n",f) 
+				else:
+					print("\nUnknown operation on type")
 
-	if dir_file is 'd':
-		print("find only directories")
-		for f in listdir_r(dir):
-			print("\n",f) 
-
-	if dir_file is 'f':
-		print("find only files") 
-		for f in listfiles_r(dir):
-			print("\n",f) 
 
