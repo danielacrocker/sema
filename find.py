@@ -44,10 +44,13 @@ if theLen  <= 1:
 
 pgm = sys.argv[0]
 
+
 if theLen >= 2:
 
 	root = sys.argv[1]
 	print("root: ", root)
+
+	os.chdir(root) # switch to find dir
 
 	if theLen >= 3:
 		name_operation = sys.argv[2]
@@ -75,4 +78,7 @@ if theLen >= 2:
 				else:
 					print("\nUnknown operation on type")
 
+		elif name_operation == '-name':
+
+			print("pattern: " , sys.argv[3])
 
