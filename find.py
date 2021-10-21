@@ -1,3 +1,4 @@
+#####################################################################
 # find.py
 # 	parse and implement find parameters:
 #	-print
@@ -5,9 +6,12 @@
 #
 # 	use subprocess and glob
 #
+#####################################################################
+
 import sys
 import os
 from pathlib import Path
+import glob
 
 # list only dirs
 def listdir_r(dirpath):
@@ -81,4 +85,14 @@ if theLen >= 2:
 		elif name_operation == '-name':
 
 			print("pattern: " , sys.argv[3])
+
+			#files = [f for f in os.listdir('.') if os.path.isfile(f)]
+
+			# for f in files:
+				# do something
+
+			files = glob.glob(sys.argv[3])		
+
+			for f in files:
+				print(f)
 
