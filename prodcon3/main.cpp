@@ -31,22 +31,26 @@ void *producer(void *arg)
 {
     int i;
     for (i = 0; i < loops; i++) {
-        sem_wait(&mutex);
         sem_wait(&empty);
+
+        sem_wait(&mutex);
         put(i);
-        sem_post(&full);
         sem_post(&mutex);
+
+        sem_post(&full);
     }
 }
 
 void *consumer(void *arg) {
     int i;
     for (i = 0; i  < loops; i++) {
-        sem_wait(&mutex);
         sem_wait(&full);
+
+        sem_wait(&mutex);
         int b = get();
-        sem_post(&empty);
         sem_post(&mutex);
+
+        sem_post(&empty);
         printf("%d\n", b);
     }
 }
