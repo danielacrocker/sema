@@ -1,65 +1,60 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <math.h>
 
-const int NUM_THREADS = 8;
+const int NUM_THREADS = 4;
 
-struct thread_data {
-    int thread_id;
-    int sum;
-    char *message;
-};
-
-struct thread_data thread_data_array[8];
-
-char *messages[8];
-
-void *PrintHello(void *threadarg)
+void *BusyWork(void *t)
 {
-    int taskid, sum;
-    char *hello_msg;
-    struct thread_data *my_data;
-
-    sleep(1);
-    my_data = (struct thread_data *) threadarg;
-    taskid = my_data->thread_id;
-    sum = my_data->sum;
-    hello_msg = my_data->message;
-    printf("Thread %d: %s Sum=%d\n", taskid, hello_msg, sum);
-    pthread_exit(NULL);
+    int i;
+    long tid;
+    double result = 0.0;
+    tid = (long)t;
+    printf("Thread %ld starting...\n", tid);
+    for (i = 0; i < 1000000; i++) {
+        result = result + sin(i) + tan(i);
+    }
+    printf("Thread %ld done. Result = %e\n", tid, result);
+    pthread_exit((void*) t);
 }
 
 int main(int argc, char *argv[])
 {
-    pthread_t threads[NUM_THREADS];
-    long taskids[NUM_THREADS ];
-    int rc, t, sum;
+    pthread_t thread[NUM_THREADS];
+    pthread_attr_t attr;
+    int rc, t;
+    void *status;
 
-    sum = 0;
-    messages[0] = "English: Hello World!";
-    messages[1] = "French: Bonjour le monde!";
-    messages[2] = "Spanish: Hola al mundo!";
-    messages[3] = "Klingon: Nuq neH!";
-    messages[4] = "German: Guten Tag, welt!";
-    messages[5] = "Russian: Zdravstvuyte, mir!";
-    messages[6] = "Japan: Sekai e konnichiwa!";
-    messages[7] = "Latin: Orbis, te saluto!";
+    /* Initialize and set thread detached attribute */
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
     for(t = 0; t < NUM_THREADS; t++) {
-        sum += t;
-        thread_data_array[t].thread_id = t;
-        thread_data_array[t].sum = sum;
-        thread_data_array[t].message = messages[t];
-
-        printf("Creating thread %ld\n", t);
-
-        rc = pthread_create(&threads[t], NULL, PrintHello, (void *)&thread_data_array[t]);
+        printf("Main: creating thread %ld\n", t);
+        rc = pthread_create(&thread[t], &attr, BusyWork, (void *) t);
 
         if (rc) {
-            printf("ERROR, return code from pthread_create() is %d\n", rc);
+            printf("ERROR: return code from pthread_join() is %d\n", rc);
             exit(-1);
         }
     }
+
+    /* Free attribute and wait for the other threads */
+    pthread_attr_destroy(&attr);
+
+    for(t = 0; t < NUM_THREADS; t++) {
+        rc = pthread_join(&thread[t], &status);
+
+        if (rc) {
+            printf("ERROR: return code from pthread_join() is %d\n", rc);
+            exit(-1);
+        }
+        printf("Main: completed join with thread %ld having a status of %ld\n", t, (long) status);
+    }
+
+    printf("Main: program completed. Exiting.\n");
+
 
     pthread_exit(NULL);
 
