@@ -1,129 +1,107 @@
-// dot product
+// condition variables
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
 
-/*
- * The following structure contains the necessary information
- * to allow th function "dotprod" to access its input data and
- * place its output into the structure.
- */
+const int NUM_THREADS = 3;
+const int TCOUNT = 10;
+const int COUNT_LIMIT = 12;
 
-typedef struct
+int count = 0;
+pthread_mutex_t count_mutex;
+pthread_cond_t count_threshold_cv;
+
+void *inc_count(void *t)
 {
-    double *a;
-    double *b;
-    double sum;
-    int veclen;
-} DOTDATA;
+    int i;
+    long my_id = (long)t;
 
-/* Define globally accessible variables and a mutex */
+    for (i = 0; i < TCOUNT; i++) {
 
-const int NUMTHRDS = 4;
-const int VECLEN= 100;
+        pthread_mutex_lock(&count_mutex);
 
-DOTDATA dotstr;
-pthread_t callThd[4];
-pthread_mutex_t mutexsum;
+        count++;
 
-/*
- * The function dotprod is activated when the thread is crated.
- * All npu to this routine is obtained from a structure
- * of type DOTDATA and all output from ths function is written into
- * this structure. The benefit of this approact is apparent for
- * multi-threaded program: when a thread is crated we pass a single
- * argument to the activated function - typically this argument
- * is a thread number. All the other information required by the
- * function is accessed from the globally accessible structure.
- */
+        /*
+         * Check the value of count and signal waiting thread when condition is reached
+         * Note that this occurs when mutex is locked.
+         */
+        if (count == COUNT_LIMIT) {
+            printf("inc_count(): thread %ld, count = %d Threshold reached. ", my_id, count);
+            pthread_cond_signal(&count_threshold_cv);
+            printf("Just sent signal.\n");
+        }
+        printf("inc_count(); thread %ld, count = %d, unlocking mutex\n", my_id, count);
+        pthread_mutex_unlock(&count_mutex);
 
-void *dotprod(void *arg)
-{
-    /* define and use local variables for convenience */
-    int i, start, end, len;
-    long offset;
-    double mysum, *x, *y;
-    offset = (long)arg;
-
-    len = dotstr.veclen;
-    start = offset*len;
-    end = start + len;
-    x = dotstr.a;
-    y = dotstr.b;
-
-    /*
-     * Perform the dot product and assign result
-     * to the appropriate variable in the structure.
-     */
-
-    mysum = 0;
-
-    for (i = start; i < end; i++)
-    {
-        mysum += (x[i] * y[i]);
+        /* Do some work so threads can alternate on mutex lock */
+        sleep(1);
     }
 
-    /*
-     * Lock a mutex prior to updating the value in the shared
-     * structure, and unlock it upon updating.
-     */
-    pthread_mutex_lock(&mutexsum);
-    dotstr.sum += mysum;
-    pthread_mutex_unlock(&mutexsum);
+    pthread_exit(NULL);
+}
 
-    pthread_exit((void*) 0);
+void *watch_count(void *t)
+{
+    long my_id = (long)t;
+
+    printf("Starting watch_count(): thread %ld\n", my_id);
+
+    /* Lock mutex and wait for signal. Note that the pthread_cond_wait routine
+     * will automatically and atomically unlock mutex while it waits.
+     * Also, not that if COUNT_LIMIT is reached before this routine is run by
+     * the waiting thread, the loop will be skipped to prevent pthread_cond_wait
+     * from never returning.
+     */
+    pthread_mutex_lock(&count_mutex);
+
+    while (count < COUNT_LIMIT)
+    {
+        printf("watch_count(): thread %ld Count = %d. Going into wait...\n", my_id, count);
+        pthread_cond_wait(&count_threshold_cv, &count_mutex);
+        printf("watch_count(): thread %ld Condition signal received. Count= %d\n", my_id, count);
+    }
+
+    printf("watch_count(): thread %ld Updating the value of count...\n", my_id);
+
+    count += 125;
+
+    printf("watch_count(): thread %ld count now = %d.\n", my_id, count);
+    printf("watch_count(): thread %ld unblocking mutex.\n", my_id);
+
+    pthread_mutex_unlock(&count_mutex);
+    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[])
 {
-    long i;
-    double *a, *b;
-    void *status;
+    int i, rc;
+    long t1 = 1, t2=2, t3=3;
+    pthread_t threads[3];
     pthread_attr_t attr;
 
-    /* Assign storage and initialize values */
-    a = (double*) malloc(NUMTHRDS*VECLEN*sizeof(double));
-    b = (double*) malloc(NUMTHRDS*VECLEN*sizeof(double));
+    /* Initialize mutex and condition variable objects */
+    pthread_mutex_init(&count_mutex, NULL);
+    pthread_cond_init(&count_threshold_cv, NULL);
 
-    for (i = 0; i < VECLEN*NUMTHRDS; i++)
-    {
-        a[i] = 1.0;
-        b[i] = a[i];
-    }
-
-    dotstr.veclen = VECLEN;
-    dotstr.a = a;
-    dotstr.b = b;
-    dotstr.sum = 0;
-
-    pthread_mutex_init(&mutexsum, NULL);
-
-    /* Create thread to perform the dotproduct */
+    /* For portability, explicitly create threads in a joinable state */
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_create(&threads[0], &attr, watch_count, (void *) t1);
+    pthread_create(&threads[1], &attr, inc_count, (void *) t2);
+    pthread_create(&threads[2], &attr, inc_count, (void *) t3);
 
-    for(i = 0; i < NUMTHRDS; i++)
-    {
-        /*
-         * Each thrad works on a different set of data. The offset is specified
-         * by i. The size of the data for each thrad is indicated by VECLEN.
-         */
-        pthread_create(&callThd[i], &attr, dotprod, (void *) i);
+    /* Wait for all threads to complete */
+    for (i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i], NULL);
     }
 
+    printf("Main(): Waited and joined with %d threads. Final value of count = %d. Done.\n", NUM_THREADS, count);
+
+    /* Clean up and exit */
     pthread_attr_destroy(&attr);
-
-    /* wait for the other threads */
-    for(i = 0; i < NUMTHRDS; i++)
-    {
-        pthread_join(callThd[i], &status);
-    }
-
-    /* after joining, print out the results and cleanup */
-    printf("sum = %f \n", dotstr.sum);
-    free(a);
-    free(b);
-    pthread_mutex_destroy(&mutexsum);
+    pthread_mutex_destroy(&count_mutex);
+    pthread_cond_destroy(&count_threshold_cv);
     pthread_exit(NULL);
 
     return 0;
